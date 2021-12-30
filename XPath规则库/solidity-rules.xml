@@ -1,0 +1,1371 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Rules xmlns="http://www.smartdec.ru/SmartCheck/Conditions" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.smartdec.ru/SmartCheck/Conditions rules-grammar-schema.xsd ">
+    <Rule>
+        <RuleId>SOLIDITY_DivMul_Zero</RuleId>
+        <Patterns>
+            <!--Фa/b*c-->
+            <Pattern patternId="sdm001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //expression
+                    [muldivOperator/mulOperator or
+                    functionCall/functionName/identifier[text()[1]='mul']]
+                    [descendant::divOperator or
+                    descendant::functionCall/functionName/identifier[text()[1]='div']]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="sdz001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //expression[muldivOperator/divOperator]
+                    [expression[2]/primaryExpression/identifier = ancestor::functionDefinition/parameterList//parameter/identifier
+                    or expression[2]/primaryExpression/numberLiteral]
+                    [not(
+                    expression[2]/primaryExpression/identifier = ancestor::ifStatement/condition//expression[comparison][expression//decimalNumber = "0"]//expression/primaryExpression/identifier
+                    or expression[2]/primaryExpression/identifier = ancestor::*/preceding-sibling::statement//ifStatement/condition//expression[comparison][expression//decimalNumber = "0"]//expression/primaryExpression/identifier
+                    or expression[2]/primaryExpression/identifier = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[comparison][expression//decimalNumber = "0"]//expression/primaryExpression/identifier
+                    or  expression[2]/primaryExpression/numberLiteral[not(decimalNumber = "0")]
+                    )
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_UncheckedSelfDestruct</RuleId>
+        <Patterns>
+            <Pattern patternId="sus001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //expression[
+                    functionCall/functionName[identifier = "selfdestruct"]
+                    ]
+                    [not(
+                    ancestor::ifStatement/condition//environmentalVariable[matches(text()[1],"msg.sender")]
+                    or ancestor::statement[preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//environmentalVariable[matches(text()[1],"msg.sender")]]
+                    or ancestor::functionDefinition/identifier[text()[1] = ancestor::sourceUnit//modifierDefinition/identifier and text()[1] ="onlyOwner"]
+                    )
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_FunctionReturns_NoReturn</RuleId>
+        <Patterns>
+            <!--(returns(uint,...))-->
+            <Pattern patternId="snr001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition
+                    [block]
+                    [
+                    not(block/statement//returnStatement)
+                    or block/statement//returnStatement[not(expression)]
+                    ]
+                    [returnsParameters/parameterList/parameter[not(identifier)]]
+                </XPath>
+            </Pattern>
+            <!--"function(...) ... returns (type name) {...}" -  "name" return.-->
+            <Pattern patternId="snr002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition
+                    [block]
+                    [not(block/statement//returnStatement)]
+                    [returnsParameters/parameterList/parameter/identifier[not(text()[1]=(ancestor::functionDefinition/block//expression[matches(text()[1],"=")]/expression[1]//identifier))]]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_StructNull</RuleId>
+        <Patterns>
+            <Pattern patternId="ssn001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //structDefinition[not(variableDeclaration)]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_IncorrectStorageLocation</RuleId>
+        <Patterns>
+            <Pattern patternId="sal001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition//variableDeclaration
+                    [typeName[text()[1] = "[]"] or typeName/elementaryTypeName[text()[1] = "string"] or typeName/elementaryTypeName[text()[1] = "bytes"] ]
+                    [storageLocation[text()[1] = "calldata"]
+                    or
+                    not(storageLocation)
+                    ]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4|0.7|0.8|0.6.9|0.6.10|0.6.11|0.6.12"))]]
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="sal002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition
+                    [   parameterList/parameter
+                        [typeName[text()[1] = "[]"] or typeName/elementaryTypeName[text()[1] = "string"] or typeName/elementaryTypeName[text()[1] = "bytes"] ]
+                        [storageLocation[text()[1] = "calldata"]]
+                        [ancestor::sourceUnit
+                        [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4|0.7|0.8|0.6.9|0.6.10|0.6.11|0.6.12"))]]
+                        ]
+                    ]
+                    [visibleType[not(text()[1]="external")]
+                    or not(visibleType)
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="sal003">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition
+                    [   parameterList/parameter
+                    [typeName[text()[1] = "[]"] or typeName/elementaryTypeName[text()[1] = "string"] or typeName/elementaryTypeName[text()[1] = "bytes"] ]
+                    [storageLocation[text()[1] = "memory"]]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4|0.7|0.8|0.6.9|0.6.10|0.6.11|0.6.12"))]]
+                    ]
+                    ]
+                    [visibleType[text()[1]="external"]
+                    or not(visibleType)
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_FunctionExplicitVisibility </RuleId>
+        <Patterns>
+            <!--constructor未显式声明 或不是public类型-->
+            <Pattern patternId="fev001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //contractDefinition//functionDefinition[text()[1]="constructor"]
+                    [visibleType[not(text()[1]="public" or text()[1]="internal")]
+                    or not(visibleType)
+                    ]
+                    [ancestor::sourceUnit
+                        [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4|0.7|0.8"))]]
+                    ]
+                </XPath>
+            </Pattern>
+            <!--fallback未显式声明 或不是external类型-->
+            <Pattern patternId="fev002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //contractDefinition//functionFallBackDefinition
+                    [visibleType[not(text()[1]="external")]
+                    or not(visibleType)
+                    ]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]]
+                    ]
+                </XPath>
+            </Pattern>
+            <!--interface内函数未显式声明 或不是external类型-->
+            <Pattern patternId="fev003">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //interfaceDefinition/contractPartDefinition/(functionDefinition|functionFallBackDefinition)
+                    [visibleType[not(text()[1]="external")]
+                    or not(visibleType)
+                    ]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]]
+                    ]
+                </XPath>
+            </Pattern>
+            <!--普通函数-->
+            <Pattern patternId="fev004">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //contractDefinition//functionDefinition[not(text()[1]="constructor")]
+                    [not(visibleType)]
+                    [ancestor::sourceUnit
+                    [//pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_DeprecatedVersion0.5</RuleId>
+        <Patterns>
+            <!--"suicide"-->
+            <Pattern patternId="sdv001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionCall/functionName//identifier[text()[1]="suicide"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                    |
+                    //assemblyCall/identifier[text()[1]="suicide"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"sha3"-->
+            <Pattern patternId="sdv002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionCall/functionName//identifier[text()[1]="sha3"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                    |
+                    //assemblyCall/identifier[text()[1]="sha3"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"throw"-->
+            <Pattern patternId="sdv003">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //statement/throwRevertStatement[text()[1]="throw"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--constant-->
+            <Pattern patternId="sdv004">
+                <Categories>
+
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition[stateMutability/constantType][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!-- years -->
+            <Pattern patternId="sdv005">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //numberLiteral/numberUnit[text()[1]="years"]
+                    [ancestor::sourceUnit [ //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"callcode"-->
+            <Pattern patternId="sdv006">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionCall/functionName//identifier[text()[1]="callcode"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"var"-->
+            <Pattern patternId="sdv007">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //variableDeclaration/typeName/elementaryTypeName[text()[1]="var"][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"block.blockhash"-->
+            <Pattern patternId="sdv008">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //environmentalVariable[matches(text()[1],"block.blockhash")][ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+            <!--"同合约名构造函数"-->
+            <Pattern patternId="sdv009">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition[identifier = ancestor::contractDefinition/identifier]
+                    [ancestor::sourceUnit
+                    [
+                    //pragmaSolidity//versionLiteral[not(matches(text()[1], "0.4"))]
+                    ]]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_VersionNotFixed</RuleId>
+        <Patterns>
+            <!---->
+            <Pattern patternId="snf001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>//pragmaDirective
+                    [pragmaSolidity//versionOperator]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_VarInLoop</RuleId>
+        <Patterns>
+            <!-- "-->
+            <Pattern patternId="svl001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>//forStatement
+                    [expression[1]//typeName/elementaryTypeName[text()[1] = "var"]
+                    and
+                    expression[1]//variableDeclaration/identifier[text()[1] = ancestor::forStatement/condition//identifier]
+                    ]
+                    [
+                    condition/expression/expression/primaryExpression/numberLiteral/decimalNumber[text()[1] > 256]
+                    and
+                    expression[1]//expression//numberLiteral/decimalNumber[256 > text()[1]]
+                    or
+                    condition/expression/expression//identifier[text()[1] = ancestor::functionDefinition/parameterList//identifier]
+                    ]
+
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Incorrect_View</RuleId>
+        <Patterns>
+            <Pattern patternId="siv001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition[stateMutability/viewType and block/descendant-or-self::*[
+                    <!--Using selfdestruct and it's alias suicide:-->
+                    expression[text()[1]="="]/expression[1]//identifier[text()[1] = ancestor::contractDefinition//stateVariableDeclaration/identifier]
+                    or emitEventStatement
+                    or functionCall/functionName/newContract
+                    or functionCall/functionName//identifier[text()[1] = "selfdestruct"]
+                    <!--Sending Ether via calls:-->
+                    or functionCall/functionName//identifier[text()[1]="send" or text()[1]="transfer"]
+                    <!--Using low-level calls:-->
+                    or functionCall/functionName//identifier[text()[1]="call" or text()[1]="delegatecall"]
+                    <!--Using inline assembly that contains certain opcodes:-->
+                    or inlineAssemblyStatement
+                    ]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Incorrect_Pure</RuleId>
+        <Patterns>
+            <Pattern patternId="sip001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionDefinition[stateMutability/pureType and block/descendant-or-self::*[
+                    expression//identifier[text()[1] = ancestor::contractDefinition//stateVariableDeclaration/identifier]
+                    <!--Accessing <address>.balance: using .balance-->
+                    or expression[matches(text()[1],".balance")]
+                    <!--Accessing any of the members of block, tx, msg (with the exception of msg.sig and msg.data)-->
+                    or environmentalVariable[not(text()[1]= "msg.sig" or text()[1]= "msg.data")]
+                    <!--Using selfdestruct -->
+                    or functionCall/functionName//identifier[text()[1] = "selfdestruct"]
+                    <!--Sending Ether via calls:-->
+                    or functionCall/functionName//identifier[text()[1]="send" or text()[1]="transfer"]
+                    <!--Using low-level calls:-->
+                    or functionCall/functionName//identifier[text()[1]="call" or text()[1]="delegatecall"]
+                    <!--Using inline assembly that contains certain opcodes:-->
+                    or inlineAssemblyStatement
+                    ]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_FrozenEther</RuleId>
+        <Patterns>
+            <Pattern patternId="sfe001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //contractDefinition
+                    [not(inheritanceSpecifier/userDefinedTypeName/identifier[matches(text()[1], "IERC")])]
+                    [
+                        contractPartDefinition
+                            [functionDefinition/stateMutability/payableType
+                            or functionFallBackDefinition/stateMutability/payableType]
+                    ]
+                    [not(contractPartDefinition/functionDefinition/block//expression[text()[1]= "."]/expression/functionCall/functionName//identifier[matches(text()[1], "^IERC")])]
+                    [not(contractPartDefinition/functionDefinition/block//functionCall/functionName//identifier[matches(text()[1], "^delegatecall$")])]
+                    [not(contractPartDefinition/functionDefinition/block//functionCall/functionName//identifier[matches(text()[1], "^suicide$|^selfdestruct$")])]
+                    [not(contractPartDefinition/functionDefinition/block//functionCall/functionName//identifier[matches(text()[1], "^transfer|^send$")])]
+                    [not(contractPartDefinition/functionDefinition/block//functionCall/value)]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Pragma0.4</RuleId>
+        <Patterns>
+            <Pattern patternId="pram0.4">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //pragmaDirective
+                    [
+                    pragmaSolidity//versionLiteral[matches(text()[1], "0.4|0.3")]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_MisuseOfRandom</RuleId>
+        <Patterns>
+            <!-- -->
+            <Pattern patternId="smr001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //expression[text()[1] = "="]
+                    [
+                    expression[2]//muldivOperator
+                    ]
+                    [
+                    expression[2]//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    or
+                    expression[2]//environmentalVariable[matches(text()[1],"blockhash")]
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="smr002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //variableDeclaration[text()[1] = "="]
+                    [
+                    expression//muldivOperator
+                    or
+                    expression//plusminusOperator
+                    ]
+                    [
+                    expression//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    or
+                    expression//environmentalVariable[matches(text()[1],"blockhash")]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_IncorrectBlockhash</RuleId>
+        <Patterns>
+            <!--block.blockhash查前256以内的区块 -->
+            <Pattern patternId="sib001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //environmentalVariable[matches(text()[1],"blockhash")]
+                    [
+                        expression[primaryExpression/numberLiteral/decimalNumber or environmentalVariable[text()[1]="block.number"]
+                        or (expression[1]/environmentalVariable[text()[1]="block.number"]
+                        and plusminusOperator/minusOperator
+                        and expression[2]/primaryExpression/numberLiteral/decimalNumber
+                        [text()[1] > 256])
+                        or (expression[1]/environmentalVariable[text()[1]="block.number"]
+                        and plusminusOperator/plusOperator
+                        and expression[2]/primaryExpression/numberLiteral/decimalNumber
+                        [text()[1] >= 0])
+                        ]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Tx.Origin</RuleId>
+        <Patterns>
+            <Pattern patternId="sto001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //condition
+                    [
+                    expression[comparison]//environmentalVariable[matches(text()[1],"^tx.origin$")]/parent::expression[parent::expression[not(comparison and expression/environmentalVariable[matches(text()[1],"^msg.sender$")])]]
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="sto002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]
+                    [
+                    callArguments//expression[comparison]//environmentalVariable[matches(text()[1],"^tx.origin$")]/parent::expression[parent::expression[not(comparison and expression/environmentalVariable[matches(text()[1],"^msg.sender$")])]]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_UncheckedCall</RuleId>
+        <Patterns>
+            <Pattern patternId="suc001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //expressionStatement[ancestor::contractDefinition]
+                    [
+                    expression[not(text()[1] = "=")]//functionCall
+                        [functionName//identifier[text()[1] = "send" or text()[1] = "call" or text()[1] = "delegatecall"]
+                        and not(ancestor::ifStatement and ancestor::condition)
+                        and not(ancestor::returnStatement)
+                        and not(ancestor::functionCall[functionName[identifier='require' or identifier='assert' or identifier='revert']])
+                        and not(ancestor::expressionStatement//primaryExpression[identifier='require' or identifier='assert' or identifier='revert'])
+                        and not(ancestor::variableDeclarationStatement)
+                        ]
+                    or
+                    expression[text()[1] = "="]
+                        [
+                        expression[2]//functionCall/functionName//identifier[text()[1] = "staticcall" or text()[1] = "call" or text()[1] = "delegatecall"]
+                        ]
+                        [
+                        not(
+                        expression[1]//variableDeclaration[typeName/elementaryTypeName[text()[1] = "bool"]]/identifier =
+                        ancestor::block//condition//expression//identifier
+                        or
+                        expression[1]//variableDeclaration[typeName/elementaryTypeName[text()[1] = "bool"]]/identifier =
+                        ancestor::block//functionCall[functionName[identifier='require' or identifier='assert' or identifier='revert']]/callArguments//identifier
+                        or
+                        expression[1]//variableDeclaration[typeName/elementaryTypeName[text()[1] = "bool"]]/identifier =
+                        ancestor::block//expressionStatement//expression[expression/primaryExpression[identifier='require' or identifier='assert' or identifier='revert']]/callArguments//identifier
+                        )
+                        ]
+
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="suc002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //assemblyCall
+                    [identifier[text()[1] = "callcode" or text()[1] = "staticcall"]
+                    and not(parent::assemblyExpression[parent::assemblyIf])
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_DOS_Gas</RuleId>
+        <Patterns>
+        <!--for循环 or ".balance", ".length"-->
+            <Pattern patternId="dos001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //forStatement
+                    [condition//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or expression[2]//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or condition//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//identifier)]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                    or expression[2]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    or expression[2]//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//identifier)]]
+                    [statement//functionCall/functionName/identifier[text()[1] = "send" or text()[1] = "call" or text()[1] = "transfer"]
+                    ]
+                </XPath>
+            </Pattern>
+            <!-- while".balance", ".length"-->
+            <Pattern patternId="dos002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //whileStatement
+                    [condition//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or condition//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//identifier)]]
+                    [statement//functionCall/functionName/identifier[text()[1] = "send" or text()[1] = "call" or text()[1] = "transfer"]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Reentrancy</RuleId>
+        <Patterns>
+            <!-- -->
+            <Pattern patternId="ree001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //functionCall
+                    [functionName/identifier[text()[1]="call"]]
+                    [value]
+                    [
+                    not(gas)
+                    or gas/expression//identifier
+                    or gas/expression//numberLiteral[decimalNumber >= 10000]
+                    ]
+                    [
+                        ancestor::statement
+                        [
+                             following-sibling::statement//expression[lvalueOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                            or following-sibling::statement//expression[text()[1]="="]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                            or following-sibling::statement//expression[twoPlusMinusOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                        ]
+
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="ree002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //functionCall[ancestor::condition]
+                    [functionName/identifier[text()[1]="call"]]
+                    [value]
+                    [
+                    not(gas)
+                    or gas/expression//identifier
+                    or gas/expression//numberLiteral[decimalNumber >= 10000]
+                    ]
+                    [
+                        ancestor::ifStatement
+                        [
+                        statement//expression[lvalueOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                        or statement//expression[text()[1]="="]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                        or statement//expression[twoPlusMinusOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                        ]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_IntegerOverflow</RuleId>
+        <Patterns>
+            <!-- -->
+            <Pattern patternId="SIO001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //expression[text()[1] = "="]
+                    [ancestor::contractDefinition][ancestor::contractDefinition/identifier[not(matches(text()[1], "SafeMath"))]]
+                    [ancestor::functionDefinition[not(visibleType = "internal" or visibleType = "private")]]
+                    [not(ancestor::functionCall/functionName/identifier[matches(text()[1], "require|assert|revert")])]
+                    [
+                    expression[2]
+                        [plusminusOperator or muldivOperator/mulOperator]
+                        [
+                            (expression[1]/primaryExpression/identifier
+                            [
+                                text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                                or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                                or text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ]
+                            and
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ])
+                            or
+                            (expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ]
+                            and
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ])
+                        ]
+                        [
+                            not(
+                                expression[1]/primaryExpression/identifier
+                                [
+                                text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                                or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                                ]
+                                and
+                                expression[2]/primaryExpression/identifier
+                                [
+                                text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                                or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                                ]
+                            )
+                        ]
+                        [
+                            not(
+                                    expression[1]/primaryExpression/identifier
+                                    [
+                                    text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                                    //expression//identifier
+                                    ]
+                                    and
+                                    expression[2]/primaryExpression/identifier
+                                    [
+                                    text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                                    //expression//identifier
+                                    ]
+                                )
+                        ]
+                        <!--[
+                        not(
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            /expression[1]//identifier)
+                            ]
+                            or
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            /expression[1]//identifier)
+                            ]
+                            or
+                            expression[1]/primaryExpression/identifier
+                            [text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments[//expression[not(matches(text()[1], "plusminusOperator | muldivOperator"))]]/expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            /expression/primaryExpression/identifier)
+                            ]
+                            or
+                            expression[2]/primaryExpression/identifier
+                            [text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments[//expression[not(matches(text()[1], "plusminusOperator | muldivOperator"))]]/expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            /expression/primaryExpression/identifier)
+                            ]
+                        )
+                        ]-->
+
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="SIO002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //variableDeclaration[text()[1] = "="]
+                    [ancestor::contractDefinition][ancestor::functionDefinition[not(visibleType = "internal" or visibleType = "private")]]
+                    [typeName/elementaryTypeName[matches(text()[1], "uint|int")]]
+                    [identifier[not(text()[1] = ancestor::block//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]//expression//identifier)] ]
+                    [
+                        expression
+                        [plusminusOperator or muldivOperator/mulOperator]
+                        [
+                            (expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or  text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ]
+                            and
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ])
+                            or
+                            (expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or  text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ]
+                            and
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ])
+
+                        ]
+                        [
+                            not(
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                            or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                            ]
+                            and
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                            or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                            ]
+                            )
+                        ]
+                        [
+                            not(
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ]
+                            and
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ]
+                            )
+                        ]
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="SIO003">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                    [not(ancestor::expression[text()[1] = "["])]
+                    [ancestor::contractDefinition][ancestor::functionDefinition[not(visibleType = "internal" or visibleType = "private")]]
+                    [ancestor::functionCall/functionName[identifier[matches(text()[1], "require|assert|revert")]]
+                    or (ancestor::ifStatement and ancestor::condition)]
+                    [expression[plusminusOperator or muldivOperator/mulOperator]]
+                    [
+                        expression[1]
+                        [plusminusOperator or muldivOperator/mulOperator]
+                        [
+                            expression//identifier
+                            [
+                            text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            ]
+                        ]
+                    ]
+                    [not(
+                        expression[1]
+                        [plusminusOperator or muldivOperator/mulOperator]
+                        [
+                            expression//identifier
+                            [text()[1] = ancestor::callArguments/expression/expression[2]//identifier]
+                        ]
+                    )
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="SIO004">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>3</Severity>
+                <XPath>
+                    //expression[ancestor::contractDefinition][ancestor::functionDefinition[not(visibleType = "internal" or visibleType = "private")]]
+                    [lvalueOperator/minusLvalueOperator or lvalueOperator/mulLvalueOperator]
+                    [not(expression[2]/primaryExpression/numberLiteral)]
+                    [
+                        expression[1]/expression[1]/primaryExpression/identifier
+                        [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+
+                        ]
+                        or
+                        expression[1]/primaryExpression/identifier
+                        [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                        ]
+                        or
+                        expression[2]/primaryExpression/identifier
+                        [
+                            text()[1] = (ancestor::functionDefinition//variableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1]= (ancestor::contractDefinition//stateVariableDeclaration[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                            or text()[1] = (ancestor::functionDefinition/parameterList/parameter[typeName/elementaryTypeName[matches(text()[1], "uint|int")]]/identifier)
+                        ]
+                    ]
+                    [
+                        not(
+                        (expression[1]//expression[ancestor::expression[text()[1] = "["]]/expression[1]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                        or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                        ]
+                        or
+                        expression[1]/expression[1]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                        or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                        ]
+                        or
+                        expression[1]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                        or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                        ])
+                        and
+                        expression[2]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::ifStatement/condition//expression//expression//identifier)
+                        or  text()[1] = ancestor::*/preceding-sibling::statement/ifStatement/condition//expression//identifier
+                        ]
+                        )
+                    ]
+                    [
+                    not(
+                            (expression[1]//expression[ancestor::expression[text()[1] = "["]]/expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ]
+                            or
+                            expression[1]/expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ]
+                            or
+                            expression[1]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ])
+                            and
+                            expression[2]/primaryExpression/identifier
+                            [
+                            text()[1] = ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                            //expression//identifier
+                            ]
+                        )
+                    ]
+                    [not(
+                        expression[2]/primaryExpression/identifier = ancestor::functionDefinition/functionCall[functionName/identifier[text()[1] = ancestor::sourceUnit//modifierDefinition/identifier]]/callArguments//identifier
+                        )
+                    ]
+                    <!--[
+                    not(
+                        expression[1]//expression[not(ancestor::expression[text()[1] = "["])]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression[1]//identifier)
+                        ]
+                        or
+                        expression[1]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression[1]//identifier)
+                        ]
+                        or
+                        expression[2]/primaryExpression/identifier
+                        [
+                        text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments//expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression[1]//identifier)
+                        ]
+                        or
+                        expression[1]/primaryExpression/identifier
+                        [text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments[//expression[not(matches(text()[1], "plusminusOperator | muldivOperator"))]]/expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression/primaryExpression/identifier)
+                        ]
+                        or
+                        expression[2]/primaryExpression/identifier
+                        [text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments[//expression[not(matches(text()[1], "plusminusOperator | muldivOperator"))]]/expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression/primaryExpression/identifier)
+                        ]
+                        or
+                        expression[1]//expression[not(ancestor::expression[text()[1] = "["])]/primaryExpression/identifier
+                        [text()[1] = (ancestor::*/preceding-sibling::statement//functionCall[functionName/identifier[matches(text()[1], "require|assert|revert")]]/callArguments[//expression[not(matches(text()[1], "plusminusOperator | muldivOperator"))]]/expression[text()[1] =  ">" or text()[1] =  ">=" or text()[1] =  "&lt;" or text()[1] =  "&lt;="]
+                        /expression/primaryExpression/identifier)
+                        ]
+                        )
+                    ]-->
+
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_CALL_NotDate</RuleId>
+        <Patterns>
+        <!-- Фcall 空数据// call empty date-->
+            <Pattern patternId="cnd001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //functionCall
+                    [functionName/identifier[text()[1]="call"]]
+                    [
+                    callArguments[not(expression)]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_TimestampDependence</RuleId>
+        <Patterns>
+            <Pattern patternId="std001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //expression
+                    [comparison]
+                    [expression//environmentalVariable
+                    [matches(text()[1], "^block\.timestamp|now$")]
+                    [not(ancestor::*[4][self::functionCall])]]
+                </XPath>
+            </Pattern>
+            <!--如果表达式包含 "== or != block.timestamp or now", 除了功能 now/block.timestamp-->
+            <Pattern patternId="std002">
+                <!-- temp = now; temp是局部变量 函数内分析-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //expression[text()[1] = '=']
+                    [
+                        expression[2]/environmentalVariable[matches(text()[1],"^block.timestamp|now$")][not(ancestor::*[3][self::functionCall])]
+                        or expression[2]//typeConversion//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    ]
+                    [expression[2][not(functionCall)]]
+                    [
+                        expression[1]/primaryExpression/identifier[text()[1]=(ancestor::block//variableDeclaration//identifier)]
+                        or expression[1]/primaryExpression/identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                        or expression[1]//expression[1]/primaryExpression/identifier[text()[1]=(ancestor::block//variableDeclaration//identifier)]
+                    ]
+                    [
+                        expression[1]/primaryExpression/identifier[text()[1]=
+                    (ancestor::block//expression[comparison]/expression/primaryExpression/identifier)]
+
+                    ]
+                </XPath>
+            </Pattern>
+            <Pattern patternId="std003">
+                <!-- uint256 temp = now; 函数内分析-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //variableDeclaration
+                    [
+                        expression/environmentalVariable[matches(text()[1],"^block.timestamp|now$")][not(ancestor::*[3][self::functionCall])]
+                        or expression//typeConversion//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    ]
+                    [expression[not(functionCall)]]
+                    [
+                    identifier[text()[1]=
+                    (ancestor::block//expression[comparison]/expression/primaryExpression/identifier)]
+
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="std004">
+                <!-- uint256 temp = now; temp是状态变量 整个合约内分析-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //stateVariableDeclaration
+                    [
+                        expression/environmentalVariable[matches(text()[1],"^block.timestamp|now$")][not(ancestor::*[3][self::functionCall])]
+                        or expression//typeConversion//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    ]
+                    [expression[not(functionCall)]]
+                    [
+                    identifier[text()[1]= (ancestor::contractDefinition//expression[comparison]/expression/primaryExpression/identifier)]
+                    ]
+
+                </XPath>
+            </Pattern>
+
+            <Pattern patternId="std005">
+                <!-- temp = now; temp是状态变量 整个合约内分析-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>2</Severity>
+                <XPath>
+                    //expression[text()[1] = '=']
+                    [
+                        expression[2]/environmentalVariable[matches(text()[1],"^block.timestamp|now$")][not(ancestor::*[3][self::functionCall])]
+                        or expression[2]//typeConversion//environmentalVariable[matches(text()[1],"^block.timestamp|now$")]
+                    ]
+                    [expression[2][not(functionCall)]]
+                    [
+                        expression[1]/primaryExpression/identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration//identifier)]
+                        or expression[1]//expression[1]/primaryExpression/identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration//identifier)]
+                    ]
+                    [
+                    expression[1]/primaryExpression/identifier[text()[1]=
+                    (ancestor::contractDefinition//expression[comparison]/expression/primaryExpression/identifier)]
+
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_Address_BitWrong</RuleId>
+        <Patterns>
+            <Pattern patternId="add001">
+                <!-- 局部变量 address temp = 0x12334; 0x12334 不是42位 并且不是 0x0 或 0-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //variableDeclaration
+                    [typeName//elementaryTypeName = "address"]
+                    [expression//addressNumber[string-length() != 42][not(matches(text()[1],"^0x0$"))]
+                    or expression/primaryExpression//decimalNumber != 0
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="add002">
+                <!-- 状态变量 address temp = 0x12334; 0x12334 不是42位 并且不是 0x0 或 0-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //stateVariableDeclaration
+                    [typeName//elementaryTypeName = "address"]
+                    [expression//addressNumber[string-length() != 42][not(matches(text()[1],"^0x0$"))]
+                    or expression/primaryExpression//decimalNumber != 0
+                    ]
+
+                </XPath>
+            </Pattern>
+            <Pattern patternId="add003">
+                <!--  expression： temp = 0x12334; temp 是个地址变量；0x12334 不是42位 并且不是 0x0 或 0-->
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //expression[text()[1] = '=']
+                    [
+                    expression[2]//addressNumber[string-length() != 42][not(matches(text()[1],"^0x0$"))]
+                    ]
+                    [
+                    expression[1]/primaryExpression/identifier[text()[1]=(ancestor::block//variableDeclaration[typeName//elementaryTypeName = "address"]//identifier)]
+                    or expression[1]/primaryExpression/identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName//elementaryTypeName = "address"]//identifier)]
+                    or expression[1][text()[1] = '.']/identifier[text()[1]=(ancestor::contractDefinition//structDefinition//variableDeclaration[typeName//elementaryTypeName = "address"]//identifier)]
+
+                    or expression[1][text()[1] != '.']//expression[1]/primaryExpression/identifier[text()[1]=(ancestor::block//variableDeclaration[typeName//elementaryTypeName = "address"]//identifier)]
+                    or expression[1][text()[1] != '.']//expression[1]/primaryExpression/identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName//elementaryTypeName = "address"]//identifier)]
+                    ]
+
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_OutOfGas</RuleId>
+        <Patterns>
+            <!--for循环 or ".balance", ".length"-->
+            <Pattern patternId="sog001">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //forStatement
+                    [condition//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or expression[2]//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                    or expression[2]//identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                    or condition//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    or expression[2]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    ]
+                    [statement//functionCall/functionName/identifier[matches(text()[1], "call|send|transfer|sha3|sha256|keccak256")]
+                    or statement//expressionStatement/expression[text()[1] = "="]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression[lvalueOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression[twoPlusMinusOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression[expression[1]//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//variableDeclaration[storageLocation[text()[1] = "storage"]]/identifier)]]
+                    or statement//expressionStatement/expression/expression[1]//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//variableDeclaration[typeName[text()[1] = "[]"] and not(storageLocation)]/identifier)]
+                    ]
+                </XPath>
+            </Pattern>
+            <!-- ".balance", ".length"-->
+            <Pattern patternId="sog002">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //whileStatement
+                    [condition//expression[matches(text()[1],"^.balance$|^.length$")]
+                    or condition//identifier[text()[1]=(ancestor::functionDefinition/parameterList//identifier)]
+                    or condition//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration/identifier)]
+                    ]
+                    [statement//functionCall/functionName/identifier[matches(text()[1], "call|send|transfer|sha3|sha256|keccak256")]
+                    or statement//expressionStatement/expression[text()[1] = "="]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression[lvalueOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression[twoPlusMinusOperator]/expression[1]//identifier[text()[1]=(ancestor::contractDefinition//stateVariableDeclaration[typeName[not(elementaryTypeName = "bool")]]/identifier)]
+                    or statement//expressionStatement/expression/expression[1]//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//variableDeclaration[storageLocation[text()[1] = "storage"]]/identifier)]
+                    or statement//expressionStatement/expression/expression[1]//identifier[text()[1]=(ancestor::functionDefinition//variableDeclarationStatement//variableDeclaration[typeName[text()[1] = "[]"] and not(storageLocation)]/identifier)]
+                    ]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_SAFEMATH</RuleId>
+        <Patterns>
+            <!-- 使用了 Safemath库 -->
+            <Pattern patternId="837cac">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //usingForDeclaration[identifier[matches(text()[1],"^SafeMath$","i")]]
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+    <Rule>
+        <RuleId>SOLIDITY_InlineAssembly</RuleId>
+        <Patterns>
+            <!--assemblyAssignment-->
+            <Pattern patternId="109cd5">
+                <Categories>
+                    <Category>Solidity</Category>
+                </Categories>
+                <Severity>1</Severity>
+                <XPath>
+                    //statement/inlineAssemblyStatement/inlineAssemblyBlock
+                    [not(assemblyItem/assemblyAssignment
+                    [assemblyExpression/assemblyCall/identifier
+                    [matches(text()[1], "^extcodesize$")]
+                    ])
+                    ]
+                    /ancestor::inlineAssemblyStatement
+                </XPath>
+            </Pattern>
+        </Patterns>
+    </Rule>
+
+</Rules>
