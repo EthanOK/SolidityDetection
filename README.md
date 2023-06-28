@@ -8,3 +8,9 @@
 定义了25个合约漏洞检测规则，共包含了54个XPath检测模式
 
 ![image](https://user-images.githubusercontent.com/44292124/147764033-850f45af-8665-4aeb-8c2b-8cc3196a02dd.png)
+
+
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/Jxpro/damai-tickets.svg)](https://starchart.cc/Jxpro/damai-tickets)
