@@ -53,7 +53,8 @@ def getsccodecore(eachLine):
     soup = BeautifulSoup(response.text, "html.parser")
     # js-sourcecopyarea editor ace_editor ace-dawn
     targetPRE = soup.find_all('pre', 'js-sourcecopyarea editor')
-    filepath = "E:\\SmartContract\\ContractCrawler\\code\\"
+    filepath = getPathCodeDirectory()
+
     # filename 从address.txt文档中截取；从第34位到75位
     # filename为合约地址 '0x5f3ed22b53ac0a001f0feedc2a3985999377c2ab'
     filename = eachLine[33:75]
@@ -74,9 +75,10 @@ def getsccodecore(eachLine):
 
 
 def getsccode():
+    filepath = getFilePathAddress_txt()
     try:
         SCAddress = open(
-            "E:\\SmartContract\\ContractCrawler\\address\\address.txt", "r")
+            filepath, "r")
 
     except:
         printtime()
@@ -151,7 +153,7 @@ def getSCAddress(eachurl, filepath):
 
     # 以追加的方式打开文件。
     # 如果文件不存在，则新建；如果文件已存在，则在文件指针末尾追加
-    fo = open(filepath + "address.txt", "a")
+    fo = open(filepath, "a")
 
     # 把每一个地址，都写到文件里面保存下来
     for targetTR in targetTBody:
@@ -203,21 +205,41 @@ def getUrlList10000():
     return urlList
 
 
+def getFilePathAddress_txt():
+    # 获取当前脚本所在的目录
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    # 构建相对路径到address.txt文件
+    relative_file_path = "address/address_10000.txt"
+    # 构建访问address.txt的完整路径
+    address_file_path = os.path.join(
+        current_directory, relative_file_path)
+    return address_file_path
+
+
+def getPathCodeDirectory():
+    # 获取当前脚本所在的目录
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    # 构建相对路径到code文件夹
+    relative_file_path = "code10000/"
+    # 构建访问code目录的完整路径
+    code_directory_path = os.path.join(
+        current_directory, relative_file_path)
+    return code_directory_path
+
+
 def updatescurl():
     # TODO:
     # getUrlList10000 getUrlList500
     urlList = getUrlList10000()
 
-    # print(urlList)
-
     # filepath是保存要爬取的智能合约地址的文件的存放路径
     # 请根据自己的需求改成自己想要的路径。
-    filepath = 'E:\\SmartContract\\ContractCrawler\\address\\'
+    filepath = getFilePathAddress_txt()
 
     # 把旧的存放合约地址的文件清除干净
     try:
-        if (os.path.exists(filepath + "address.txt")):
-            os.remove(filepath + "address.txt")
+        if (os.path.exists(filepath)):
+            os.remove(filepath)
             printtime()
             print('已清除%s目录下的旧文件（仓库）！' % filepath)
     except IOError:
