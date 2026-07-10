@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SolidityDetection — XML 语法树查看器</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fff;
+      color: #222;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      padding: 10px 14px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    h1 { font-size: 14px; font-weight: 600; color: #333; }
+    button, label.file-btn {
+      background: #0066cc;
+      color: #fff;
+      border: none;
+      padding: 5px 11px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.secondary { background: #666; }
+    label.file-btn input { display: none; }
+    #status { font-size: 12px; color: #666; flex: 1; }
+    #canvas-wrap {
+      flex: 1;
+      overflow: hidden;
+      cursor: grab;
+      background: #fff;
+    }
+    #canvas-wrap:active { cursor: grabbing; }
+    svg { display: block; }
+    .link {
+      fill: none;
+      stroke: #999;
+      stroke-width: 1.2px;
+    }
+    .node-box {
+      fill: #f8fbff;
+      stroke: #5b9bd5;
+      stroke-width: 1.5px;
+      cursor: pointer;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+    }
+    .node--terminal .node-box {
+      fill: #fffbf0;
+      stroke: #d4a017;
+    }
+    .node.collapsed .node-box {
+      fill: #f5f7fa;
+      stroke: #888;
+      stroke-dasharray: 4 3;
+    }
+    .node:hover .node-box {
+      fill: #e8f2ff;
+      stroke: #0066cc;
+      stroke-width: 2px;
+    }
+    .node--terminal:hover .node-box {
+      fill: #fff3d6;
+      stroke: #b8860b;
+    }
+    .node text {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 13px;
+      fill: #1a1a1a;
+      cursor: pointer;
+      pointer-events: none;
+    }
+    .node--terminal text { fill: #8b6914; }
+    .node.collapsed text { fill: #666; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>语法树（图形视图）</h1>
+    <label class="file-btn">选择 XML<input type="file" id="fileInput" accept=".xml,text/xml"></label>
+    <button class="secondary" id="fitBtn">适应窗口</button>
+    <button class="secondary" id="expandAll">全部展开</button>
+    <button class="secondary" id="collapseAll">全部折叠</button>
+    <span id="status">推荐 Cursor 扩展 XML Tree Viewer 打开 xml-view/*.xml；备选: ./tools/view-xml-tree.sh xml-view/tx.xml</span>
+  </header>
+  <div id="canvas-wrap"></div>
+  <script>
+    const wrap = document.getElementById('canvas-wrap');
+    const statusEl = document.getElementById('status');
+    const fileInput = document.getElementById('fileInput');
+
+    const FONT = '13px "SF Mono", Menlo, Consolas, monospace';
+    const LEVEL_HEIGHT = 88;
+    const LABEL_PADDING = 24;
+    const INITIAL_EXPAND_DEPTH = 2;
+    const BOX_PAD_X = 12;
+    const BOX_HEIGHT = 28;
+
+    const measureCtx = document.createElement('canvas').getContext('2d');
+    measureCtx.font = FONT;
+
+    let svg, g, zoomBehavior, currentRoot, treeLayout;
+
+    function textWidth(label) {
+      return measureCtx.measureText(label).width;
+    }
+
+    function boxSize(name) {
+      const w = textWidth(name) + BOX_PAD_X * 2;
+      return { w, h: BOX_HEIGHT, hw: w / 2, hh: BOX_HEIGHT / 2 };
+    }
+
+    function isTerminal(d) {
+      return d.data.name.startsWith('"') || (!d.children && !d._children && d.depth > 0);
+    }
+
+    function nodeClass(d) {
+      let cls = 'node';
+      if (d._children) cls += ' collapsed';
+      if (isTerminal(d)) cls += ' node--terminal';
+      return cls;
+    }
+
+    function initSvg() {
+      wrap.innerHTML = '';
+      const { width, height } = wrap.getBoundingClientRect();
+      svg = d3.select('#canvas-wrap').append('svg')
+        .attr('width', width)
+        .attr('height', height);
+      g = svg.append('g');
+      zoomBehavior = d3.zoom()
+        .scaleExtent([0.02, 4])
+        .on('zoom', (e) => g.attr('transform', e.transform));
+      svg.call(zoomBehavior);
+      treeLayout = d3.tree()
+        .nodeSize([1, LEVEL_HEIGHT])
+        .separation((a, b) => boxSize(a.data.name).hw + boxSize(b.data.name).hw + LABEL_PADDING);
+    }
+
+    function xmlToHierarchy(xmlNode) {
+      if (xmlNode.nodeType === Node.TEXT_NODE) {
+        const text = xmlNode.textContent.trim();
+        if (!text) return null;
+        const short = text.length > 32 ? text.slice(0, 29) + '...' : text;
+        return { name: short, full: text };
+      }
+      if (xmlNode.nodeType !== Node.ELEMENT_NODE) return null;
+      const children = Array.from(xmlNode.childNodes)
+        .map(xmlToHierarchy)
+        .filter(Boolean);
+      return children.length
+        ? { name: xmlNode.tagName, children }
+        : { name: xmlNode.tagName };
+    }
+
+    function collapseNode(d) {
+      if (d.children) {
+        d._children = d.children;
+        d._children.forEach(collapseNode);
+        d.children = null;
+      }
+    }
+
+    function expandNode(d) {
+      if (d._children) {
+        d.children = d._children;
+        d._children = null;
+      }
+      if (d.children) d.children.forEach(expandNode);
+    }
+
+    function collapseBeyondDepth(node, depth) {
+      if (node.depth >= depth && node.children) {
+        node._children = node.children;
+        node.children = null;
+      }
+      (node.children || node._children || []).forEach(c => collapseBeyondDepth(c, depth));
+    }
+
+    function update(source) {
+      treeLayout(currentRoot);
+      const nodes = currentRoot.descendants();
+      const links = currentRoot.links();
+
+      const node = g.selectAll('g.node').data(nodes, d => d.id || (d.id = ++update.i));
+      update.i = update.i || 0;
+
+      const nodeEnter = node.enter().append('g')
+        .attr('class', nodeClass)
+        .attr('transform', d => `translate(${source.x0},${source.y0})`)
+        .on('click', (event, d) => {
+          event.stopPropagation();
+          if (d.children) {
+            d._children = d.children;
+            d.children = null;
+          } else if (d._children) {
+            d.children = d._children;
+            d._children = null;
+          }
+          update(d);
+        });
+
+      nodeEnter.append('rect')
+        .attr('class', 'node-box')
+        .attr('rx', 5)
+        .attr('ry', 5)
+        .attr('x', d => -boxSize(d.data.name).hw)
+        .attr('y', d => -boxSize(d.data.name).hh)
+        .attr('width', d => boxSize(d.data.name).w)
+        .attr('height', BOX_HEIGHT);
+
+      nodeEnter.append('text')
+        .attr('dy', '0.35em')
+        .attr('x', 0)
+        .attr('text-anchor', 'middle')
+        .text(d => d.data.name)
+        .append('title')
+        .text(d => d.data.full || d.data.name);
+
+      const nodeUpdate = nodeEnter.merge(node);
+      nodeUpdate
+        .attr('class', nodeClass)
+        .transition().duration(180)
+        .attr('transform', d => `translate(${d.x},${d.y})`);
+      nodeUpdate.select('rect')
+        .attr('x', d => -boxSize(d.data.name).hw)
+        .attr('y', d => -boxSize(d.data.name).hh)
+        .attr('width', d => boxSize(d.data.name).w);
+      nodeUpdate.select('text').text(d => d.data.name);
+      nodeUpdate.select('title').text(d => d.data.full || d.data.name);
+
+      node.exit().transition().duration(120)
+        .attr('transform', d => `translate(${source.x0},${source.y0})`)
+        .remove();
+
+      const link = g.selectAll('path.link').data(links, d => d.target.id);
+      const linkEnter = link.enter().insert('path', 'g')
+        .attr('class', 'link')
+        .attr('d', d => {
+          const o = { x: source.x0, y: source.y0 };
+          return diagonal(o, o);
+        });
+      linkEnter.merge(link).transition().duration(180)
+        .attr('d', d => diagonal(d.source, d.target));
+      link.exit().transition().duration(120)
+        .attr('d', d => {
+          const o = { x: source.x0, y: source.y0 };
+          return diagonal(o, o);
+        })
+        .remove();
+
+      nodes.forEach(d => {
+        d.x0 = d.x;
+        d.y0 = d.y;
+      });
+    }
+
+    function diagonal(s, d) {
+      const sh = s.data ? boxSize(s.data.name).hh : 0;
+      const th = d.data ? boxSize(d.data.name).hh : 0;
+      const sy = s.y + sh;
+      const ty = d.y - th;
+      return `M${s.x},${sy}C${s.x},${(sy + ty) / 2} ${d.x},${(sy + ty) / 2} ${d.x},${ty}`;
+    }
+
+    function fitView() {
+      if (!currentRoot) return;
+      const bounds = g.node().getBBox();
+      const { width, height } = wrap.getBoundingClientRect();
+      const midX = bounds.x + bounds.width / 2;
+      const midY = bounds.y + bounds.height / 2;
+      const scale = 0.88 / Math.max(bounds.width / width, bounds.height / height, 0.001);
+      svg.transition().duration(400).call(
+        zoomBehavior.transform,
+        d3.zoomIdentity
+          .translate(width / 2, 50)
+          .scale(Math.min(scale, 1.2))
+          .translate(-midX, -midY)
+      );
+    }
+
+    function render(xmlText, fileName) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, 'text/xml');
+      const err = doc.querySelector('parsererror');
+      if (err) {
+        statusEl.textContent = 'XML 解析失败';
+        return;
+      }
+      const data = xmlToHierarchy(doc.documentElement);
+      if (!data) {
+        statusEl.textContent = '空文档';
+        return;
+      }
+      initSvg();
+      currentRoot = d3.hierarchy(data);
+      currentRoot.descendants().forEach(d => collapseBeyondDepth(d, INITIAL_EXPAND_DEPTH));
+      currentRoot.x0 = 0;
+      currentRoot.y0 = 0;
+      update(currentRoot);
+      statusEl.textContent = fileName + ' — 默认展开前 ' + INITIAL_EXPAND_DEPTH + ' 层；点击节点展开/折叠';
+      setTimeout(fitView, 120);
+    }
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => render(reader.result, file.name);
+      reader.readAsText(file);
+    });
+
+    document.getElementById('fitBtn').onclick = fitView;
+    document.getElementById('expandAll').onclick = () => {
+      if (!currentRoot) return;
+      currentRoot.descendants().forEach(expandNode);
+      update(currentRoot);
+      setTimeout(fitView, 280);
+    };
+    document.getElementById('collapseAll').onclick = () => {
+      if (!currentRoot) return;
+      currentRoot.descendants().forEach(d => {
+        if (d.depth > 0) collapseNode(d);
+      });
+      update(currentRoot);
+      setTimeout(fitView, 280);
+    };
+
+    async function loadFromParam() {
+      const file = new URLSearchParams(window.location.search).get('file');
+      if (!file) return;
+      try {
+        statusEl.textContent = '加载中: ' + file;
+        const url = file.startsWith('/') ? file : '/' + file.replace(/^\//, '');
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        render(await res.text(), file);
+      } catch (e) {
+        statusEl.textContent = '加载失败: ' + file + ' (' + e.message + ')';
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      if (!svg) return;
+      const { width, height } = wrap.getBoundingClientRect();
+      svg.attr('width', width).attr('height', height);
+    });
+
+    initSvg();
+    loadFromParam();
+  </script>
+</body>
+</html>
