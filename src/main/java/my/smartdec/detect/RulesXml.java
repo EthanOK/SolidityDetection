@@ -17,7 +17,6 @@ import javax.xml.xpath.XPathExpressionException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.function.Consumer;
@@ -35,10 +34,10 @@ public final class RulesXml implements Rules {
     public interface Source {
 
         /**
-         * @return path
+         * @return input stream
          * @throws Exception exception
          */
-        Path path() throws Exception;
+        InputStream openStream() throws Exception;
     }
 
     /**
@@ -78,7 +77,7 @@ public final class RulesXml implements Rules {
             final Path path,
             final XPath xp,
             final Consumer<Exception> consumer) {
-        this(() -> path, xp, consumer);
+        this(() -> Files.newInputStream(path), xp, consumer);
     }
 
     /**
@@ -91,7 +90,14 @@ public final class RulesXml implements Rules {
             final XPath xp,
             final Consumer<Exception> consumer) {
         this(
-                () -> Paths.get(RulesXml.class.getResource(resource).toURI()),
+                () -> {
+                    InputStream inputStream = RulesXml.class
+                            .getResourceAsStream(resource);
+                    if (inputStream == null) {
+                        throw new java.io.FileNotFoundException(resource);
+                    }
+                    return inputStream;
+                },
                 xp,
                 consumer
         );
@@ -107,9 +113,10 @@ public final class RulesXml implements Rules {
         unmarshaller.setAdapter(new RulesXml.XpathAdapter(this.xpath));
         unmarshaller.setAdapter(new PatternAdapter(this.safeness));
 
-        InputStream inputStream = Files.newInputStream(this.source.path());
-        Object context = unmarshaller.unmarshal(inputStream);
-        return ((RulesXml.RulesContext) context).rules.stream();
+        try (InputStream inputStream = this.source.openStream()) {
+            Object context = unmarshaller.unmarshal(inputStream);
+            return ((RulesXml.RulesContext) context).rules.stream();
+        }
     }
 
     /**

@@ -12,7 +12,7 @@ import my.smartdec.detect.app.TreeFactoryDefault;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPathFactory;
-import java.net.URI;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -48,26 +48,17 @@ public final class DetectionOne {
         Function<SourceLanguage, RulesXml.Source> defaultRules =
                 sourceLanguage -> () -> {
             String rulesFileName = sourceLanguage.rulesFileName();
-            URI uri = RulesXml
+            InputStream inputStream = RulesXml
                     .class
-                    .getResource(rulesFileName)
-                    .toURI();
+                    .getResourceAsStream(rulesFileName);
+            if (inputStream == null) {
+                throw new java.io.FileNotFoundException(rulesFileName);
+            }
             System.out.println("````````````````````````````````````````````````");
-            System.out.println(uri);
+            System.out.println(rulesFileName);
             System.out.println();
 
-            /*try {
-                // initialize a new ZipFilesystem
-                HashMap<String, String> env = new HashMap<>();
-                env.put("create", "true");
-                FileSystems.newFileSystem(uri, env);
-            } catch (FileSystemAlreadyExistsException ex) {
-                // great!
-                // appease PMD
-                int p = 0;
-            }*/
-
-            return Paths.get(uri);
+            return inputStream;
         };
 
         Function<SourceLanguage, RulesXml.Source> rules = arguments
@@ -75,7 +66,7 @@ public final class DetectionOne {
                 .map(Paths::get)
                 .filter(Files::isRegularFile)
                 .<Function<SourceLanguage, RulesXml.Source>>
-                        map(path -> language -> () -> path)
+                        map(path -> language -> () -> Files.newInputStream(path))
                 .orElse(defaultRules);
 
         new DetectionOne(src, rules).run();

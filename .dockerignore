@@ -1,0 +1,8 @@
+target/
+.idea/
+.git/
+.gitignore
+*.md
+GetContractCode/
+result.txt
+**/*.iml

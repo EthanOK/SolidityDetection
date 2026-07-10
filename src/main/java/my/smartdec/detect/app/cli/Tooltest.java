@@ -40,13 +40,15 @@ public final class Tooltest {
         Function<SourceLanguage, RulesXml.Source> defaultRules =
                 sourceLanguage -> () -> {
             String rulesFileName = sourceLanguage.rulesFileName();
-            URI uri = RulesXml
+            InputStream inputStream = RulesXml
                     .class
-                    .getResource(rulesFileName)
-                    .toURI();
-            System.out.println(uri);
+                    .getResourceAsStream(rulesFileName);
+            if (inputStream == null) {
+                throw new FileNotFoundException(rulesFileName);
+            }
+            System.out.println(rulesFileName);
 
-            return Paths.get(uri);
+            return inputStream;
         };
 
         Function<SourceLanguage, RulesXml.Source> rules = arguments
@@ -54,7 +56,7 @@ public final class Tooltest {
                 .map(Paths::get)
                 .filter(Files::isRegularFile)
                 .<Function<SourceLanguage, RulesXml.Source>>
-                        map(path -> language -> () -> path)
+                        map(path -> language -> () -> Files.newInputStream(path))
                 .orElse(defaultRules);
 
         //new Tooltest(src, rules).run();

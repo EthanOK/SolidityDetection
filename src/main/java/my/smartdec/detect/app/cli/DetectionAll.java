@@ -2,15 +2,26 @@ package my.smartdec.detect.app.cli;
 
 import my.smartdec.detect.RulesCached;
 import my.smartdec.detect.RulesXml;
-import my.smartdec.detect.app.*;
+import my.smartdec.detect.app.DirectoryAnalysis;
+import my.smartdec.detect.app.DirectoryAnalysisCombined;
+import my.smartdec.detect.app.DirectoryAnalysisDefault;
+import my.smartdec.detect.app.ReportDefault;
+import my.smartdec.detect.app.SourceLanguage;
+import my.smartdec.detect.app.SourceLanguages;
+import my.smartdec.detect.app.TreeFactoryDefault;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPathFactory;
-import java.io.*;
-import java.net.URI;
-import java.nio.file.*;
-import java.util.*;
+import java.io.PrintWriter;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  *
@@ -30,23 +41,25 @@ public final class DetectionAll {
      * @throws Exception exception
      */
     public static void main(final Arguments arguments) throws Exception {
-
-        /*Path src = arguments
+        Path src = arguments
                 .value("-p", "--path")
                 .map(Paths::get)
                 .filter(Files::exists)
-                .orElseThrow(IllegalArgumentException::new);*/
+                .filter(Files::isDirectory)
+                .orElseThrow(IllegalArgumentException::new);
 
         Function<SourceLanguage, RulesXml.Source> defaultRules =
                 sourceLanguage -> () -> {
             String rulesFileName = sourceLanguage.rulesFileName();
-            URI uri = RulesXml
+            InputStream inputStream = RulesXml
                     .class
-                    .getResource(rulesFileName)
-                    .toURI();
-            System.out.println(uri);
+                    .getResourceAsStream(rulesFileName);
+            if (inputStream == null) {
+                throw new java.io.FileNotFoundException(rulesFileName);
+            }
+            System.out.println(rulesFileName);
 
-            return Paths.get(uri);
+            return inputStream;
         };
 
         Function<SourceLanguage, RulesXml.Source> rules = arguments
@@ -54,30 +67,31 @@ public final class DetectionAll {
                 .map(Paths::get)
                 .filter(Files::isRegularFile)
                 .<Function<SourceLanguage, RulesXml.Source>>
-                        map(path -> language -> () -> path)
+                        map(path -> language -> () -> Files.newInputStream(path))
                 .orElse(defaultRules);
 
-        //new Tooltest(src, rules).run();
+        Optional<PrintWriter> printWriter = arguments
+                .value("-o", "--output")
+                .map(Paths::get)
+                .map(output -> {
+                    try {
+                        Path parent = output.getParent();
+                        if (parent != null && !Files.exists(parent)) {
+                            Files.createDirectories(parent);
+                        }
+                        return new PrintWriter(Files.newBufferedWriter(output));
+                    } catch (Exception ex) {
+                        throw new IllegalArgumentException(ex);
+                    }
+                });
 
-        //测试代码文件夹路径
-        // code1 result1200
-        // code2 result28800
-        ///code3 result1
-        String fpath = "E:\\SmartContract\\mytest\\code3\\";
-        //获取文件夹下的文件目录
-        String[] filelists = getFileNames(fpath);
-        //输出结果的保存路径
-        String outpath = "E:\\SmartContract\\mytest\\result\\";
-        PrintWriter printWriter = new PrintWriter(new FileWriter( outpath + "result1.txt"));
-        //遍历批量测试
-        for (String itemName : filelists) {
-            //获取文件路径 例如：E:\SmartContract\codetest\0x1d4c723c9dfd9feb1cef39e2899693ccbc839fbe.sol
-            String erch = fpath + itemName;
-            //System.out.println(erch);
-
-            new DetectionAll(Paths.get(erch), rules).run(itemName.substring(0,42), printWriter);
+        try {
+            new DetectionAll(src, rules).runAll(printWriter.orElse(null));
+        } finally {
+            if (printWriter.isPresent()) {
+                printWriter.get().close();
+            }
         }
-        printWriter.close();
     }
 
     /**
@@ -105,6 +119,45 @@ public final class DetectionAll {
     ) {
         this.source = src;
         this.rules = rs;
+    }
+
+    /**
+     * @param pw output writer
+     * @throws Exception exception
+     */
+    public void runAll(final PrintWriter pw) throws Exception {
+        try (Stream<Path> files = Files.list(this.source)) {
+            files.filter(Files::isRegularFile)
+                    .filter(DetectionAll::isContractFile)
+                    .sorted()
+                    .forEach(file -> {
+                        try {
+                            new DetectionAll(file, this.rules)
+                                    .run(contractName(file), pw);
+                        } catch (Exception ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    });
+        }
+    }
+
+    /**
+     * @param file file
+     * @return contract name
+     */
+    private static String contractName(final Path file) {
+        String name = file.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    /**
+     * @param file file
+     * @return true if contract file
+     */
+    private static boolean isContractFile(final Path file) {
+        String name = file.getFileName().toString();
+        return name.endsWith(".sol") || name.endsWith(".vy");
     }
 
     /**
@@ -136,10 +189,11 @@ public final class DetectionAll {
     }
 
     /**
+     * @param name contract name
+     * @param pw print writer
      * @throws Exception exception
      */
-    public void run(String name, PrintWriter pw) throws Exception {
-        
+    public void run(final String name, final PrintWriter pw) throws Exception {
         new ReportDefault(
                 new DirectoryAnalysisCombined(
                     makeDirectoryAnalysis(new SourceLanguages.Solidity()),
@@ -177,24 +231,14 @@ public final class DetectionAll {
                                     }
                             )
                     );
-                    // 统计违反规则
                     result.forEach((k, v) -> System.out.println(k + " : " + v));
                     System.out.println();
-                    //pw.println(name);
-                    result.forEach(
-                            (k, v) ->pw.println(name + " : " + k + " : " + v )
-
-                    );
+                    if (pw != null) {
+                        result.forEach(
+                                (k, v) -> pw.println(name + " : " + k + " : " + v)
+                        );
+                    }
                 }
         ).print();
     }
-    //获取文件路径目录
-    public static String[] getFileNames(String fpath) {
-        File filepath = new File(fpath);
-        if(!filepath.exists()){
-            System.out.println("路径不存在");
-        }
-        return filepath.list();
-    }
-
 }
