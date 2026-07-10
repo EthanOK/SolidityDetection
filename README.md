@@ -1,4 +1,4 @@
-# SolidityDetection
+# SolidityDetection v1.1
 
 在 [SmartCheck](https://github.com/smartdec/smartcheck) 理论研究基础上开发，该工具实现了对以太坊智能合约 Solidity 源码的安全漏洞检测。
 

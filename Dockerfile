@@ -14,7 +14,7 @@ FROM docker.m.daocloud.io/library/eclipse-temurin:8-jre-jammy
 
 WORKDIR /app
 
-COPY --from=build /app/target/SolidityDetection-1.0-jar-with-dependencies.jar app.jar
+COPY --from=build /app/target/SolidityDetection-1.1-jar-with-dependencies.jar app.jar
 COPY docker-entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
